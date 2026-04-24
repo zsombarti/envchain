@@ -89,3 +89,24 @@ func TestManagerListEmpty(t *testing.T) {
 		t.Errorf("expected empty list, got %v", labels)
 	}
 }
+
+func TestManagerSaveOverwrite(t *testing.T) {
+	m := newManager(t)
+	s1 := snapshot.New("env", map[string]string{"KEY": "original"})
+	if err := m.Save(s1); err != nil {
+		t.Fatalf("Save original: %v", err)
+	}
+
+	s2 := snapshot.New("env", map[string]string{"KEY": "updated"})
+	if err := m.Save(s2); err != nil {
+		t.Fatalf("Save updated: %v", err)
+	}
+
+	loaded, err := m.Load("env")
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if loaded.Vars["KEY"] != "updated" {
+		t.Errorf("expected updated value, got %q", loaded.Vars["KEY"])
+	}
+}
