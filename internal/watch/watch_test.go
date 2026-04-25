@@ -17,6 +17,17 @@ func writeFile(t *testing.T, path, content string) {
 	}
 }
 
+// newWatcher creates a Watcher for the given paths with a 20ms poll interval
+// and registers w.Run to be cancelled when the test finishes.
+func newWatcher(t *testing.T, paths []string) *watch.Watcher {
+	t.Helper()
+	w := watch.New(paths, 20*time.Millisecond)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go w.Run(ctx)
+	return w
+}
+
 func TestWatcherDetectsChange(t *testing.T) {
 	dir := t.TempDir()
 	p := filepath.Join(dir, "env.json")
@@ -105,5 +116,22 @@ func TestWatcherMultiplePaths(t *testing.T) {
 		}
 	case <-ctx.Done():
 		t.Fatal("timed out")
+	}
+}
+
+// TestWatcherContextCancellation verifies that Run exits promptly when the
+// context is cancelled, rather than blocking indefinitely.
+func TestWatcherContextCancellation(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "env.json")
+	writeFile(t, p, `{}`)
+
+	w := newWatcher(t, []string{p})
+	// newWatcher already started Run; just confirm Changes is not written to.
+	time.Sleep(50 * time.Millisecond)
+	select {
+	case ev := <-w.Changes:
+		t.Fatalf("unexpected event after cancel: %+v", ev)
+	default:
 	}
 }
